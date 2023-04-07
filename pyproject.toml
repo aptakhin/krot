@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "krot"
+version = "0.1.0"
+description = ""
+authors = ["Alexander Ptakhin <me@aptakhin.name>"]
+license = "MIT"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "3.10.8"
+
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.2.2"
+httpx = "^0.23.3"
+pytest-asyncio = "^0.21.0"
+pytest-watcher = "^0.2.6"
+requests = "^2.28.2"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

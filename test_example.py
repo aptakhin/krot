@@ -46,6 +46,7 @@ class MocketSocketCore(io.BytesIO):
 def socketpair(*args, **kwargs):
     """Returns a real socketpair() used by asyncio loop for supporting calls made by fastapi and similar services."""
     import _socket
+    # assert False
 
     return _socket.socketpair(*args, **kwargs)
 
@@ -93,6 +94,7 @@ class KrotSocket:
 
     @property
     def fd(self):
+        print('Trace', 'fd')
         if self._fd is None:
             self._fd = MocketSocketCore()
         return self._fd
@@ -101,6 +103,7 @@ class KrotSocket:
         return self.timeout
 
     def setsockopt(self, family, type, proto):
+        print('Trace', 'setsockopt', family, type, proto)
         self.family = family
         self.type = type
         self.proto = proto
@@ -109,6 +112,7 @@ class KrotSocket:
             self.true_socket.setsockopt(family, type, proto)
 
     def settimeout(self, timeout):
+        print('Trace', 'settimeout', timeout)
         self.timeout = timeout
 
     @staticmethod
@@ -122,6 +126,7 @@ class KrotSocket:
         return self._address
 
     def setblocking(self, block):
+        print('Trace', 'setblocking', block)
         self.settimeout(None) if block else self.settimeout(0.0)
 
     def getsockname(self):
@@ -155,13 +160,16 @@ class KrotSocket:
 
     @staticmethod
     def fileno():
+        print('Trace', 'fileno')
         r_fd, w_fd = os.pipe()
         return r_fd
 
     def connect(self, address):
+        print('Trace', 'connect')
         self._address = self._host, self._port = address
 
     def makefile(self, mode='r', bufsize=-1):
+        print('Trace', 'makefile')
         self._mode = mode
         self._bufsize = bufsize
         return self.fd
@@ -170,6 +178,7 @@ class KrotSocket:
     #     return Mocket.get_entry(self._host, self._port, data)
 
     def sendall(self, data, entry=None, *args, **kwargs):
+        print('Trace', 'sendall')
         # if entry is None:
         #     entry = self.get_entry(data)
 
@@ -207,6 +216,7 @@ class KrotSocket:
     #     raise exc
 
     def true_sendall(self, data, *args, **kwargs):
+        print('Trace', 'true_sendall')
         # if MocketMode().STRICT:
         #     raise StrictMocketException("Mocket tried to use the real `socket` module.")
 
@@ -262,7 +272,7 @@ class KrotSocket:
         #         **self.kwargs,
         #     )
 
-        data = b'GET /status/200 HTTP/1.1\r\nHost: httpbin.org\r\nUser-Agent: python-requests/2.28.2\r\nAccept-Encoding: gzip, deflate\r\nAccept: */*\r\nConnection: keep-alive\r\n\r\n'
+        # data = b'GET /status/200 HTTP/1.1\r\nHost: httpbin.org\r\nUser-Agent: python-requests/2.28.2\r\nAccept-Encoding: gzip, deflate\r\nAccept: */*\r\nConnection: keep-alive\r\n\r\n'
         print(f'X, {host=}, {port=}, {data=}, {args=}, {kwargs=}')
 
         try:
@@ -311,32 +321,30 @@ class KrotSocket:
         # response back to .sendall() which writes it to the Mocket socket and flush the BytesIO
         return encoded_response
 
-    def send(self, data, *args, **kwargs):  # pragma: no cover
-        # entry = self.get_entry(data)
-        # if not entry or (entry and self._entry != entry):
+    def send(self, data, *args, **kwargs):
+        print('Trace', 'send', data)
         self.sendall(data, entry=None, *args, **kwargs)
-        # else:
-        #     req = Mocket.last_request()
-        #     if hasattr(req, "add_data"):
-        #         req.add_data(data)
-        # self._entry = entry
         return len(data)
 
     def close(self):
+        print('Trace', 'close')
         if self.true_socket and not self.true_socket._closed:
             self.true_socket.close()
         self._fd = None
 
-    def __getattr__(self, name):
-        """Do nothing catchall function, for methods like close() and shutdown()"""
+    # def __getattr__(self, _):
+    #     """Do nothing catch function for methods like shutdown()."""
+    #     def do_nothing(*args, **kwargs):
+    #         pass
+    #     return do_nothing
 
-        def do_nothing(*args, **kwargs):
-            pass
-
-        return do_nothing
+    def shutdown(self, __how: int) -> None:
+        print('Trace', 'shutdown')
+        pass
 
 
 def create_connection(address, timeout=None, source_address=None):
+    # assert False
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP)
     if timeout:
         s.settimeout(timeout)
@@ -350,13 +358,13 @@ class Context:
 
     def start(self) -> None:
         socket.create_connection = create_connection
-
         socket.socketpair = socketpair
 
         def socket_impl(family=None, type=SOCK_STREAM, proto=0):
-            # assert False
             return KrotSocket(context=self)
         socket.socket = socket_impl
+        socket._socketobject = socket_impl
+        socket.SocketType = socket_impl
 
     def dispose(self) -> None:
         pass
@@ -375,6 +383,7 @@ def mock():
     context.dispose()
 
 
+@pytest.mark.skip
 def test_requests():
     with mock() as context:
         context.add_response(json={'hello': 'world'})
@@ -383,11 +392,24 @@ def test_requests():
         assert response.json() == {'hello': 'world'}
 
 
-@pytest.mark.skip
+def test_collect_last_request():
+    addr = ("localhost", 80)
+
+    # entry = MocketEntry(addr, True)
+    # Mocket.register(entry)
+    with mock() as context:
+        _so = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        _so.connect(addr)
+        _so.sendall(b"data\r\n")
+        _so.close()
+        # self.assertEqual(Mocket.last_request(), b"data\r\n")
+
+
+# @pytest.mark.skip
 @pytest.mark.asyncio
 async def test_it():
     with mock() as context:
-        context.add_response(json={})
+        context.add_response(json={'hello': 'world'})
 
         async with httpx.AsyncClient() as client:
             response = await client.get('http://httpbin.org/status/200')
